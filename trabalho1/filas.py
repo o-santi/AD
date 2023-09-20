@@ -1,64 +1,41 @@
 from dataclasses import dataclass
-from enum import IntEnum, auto
-from itertools import count
-
-class EstadoDoServidor(IntEnum):
-    Ocioso = auto()
-    Processando = auto()
+from typing import Optional
 
 @dataclass
 class Cliente:
     chegada: float
+    saida: Optional[float]
     
 @dataclass
 class Servidor:
-    clientes: list[Cliente]
+    fila_de_clientes: list[Cliente] = []
+    clientes_processados: list[Cliente] = []
     lamda: float
     mu: float
 
     tempo_maximo: float
-    estado: EstadoDoServidor
-    def run2(self):
-        chegadas = [0]
-        tempo = 0
-        while tempo < self.tempo_maximo:
-            poisson = self.poisson()
-            chegadas.push(poisson)
-            tempo += poisson
-        partidas = []
-        entrada_ultimo_usuario = 0
-        for (chegada, prox) in zip(chegadas[:-1], chegadas[1:]):
-            atendimento = self.exponencial()
-            partida = tempo + atendimento
-            partidas.push(partida)
-            if prox > partida:
-                tempo = prox
-            else:
-                tempo = partida
-
-    def __init__(self, lamda, mu):
-        self.lamda = lamda
-        self.mu = mu
-        self.clientes = [Cliente(chegada = 0)]
     
     def run(self):
-        tempo = 0
-        while tempo < self.tempo_maximo:
-            match self.estado:
-                case EstadoDoServidor.Ocioso:
-                    if (cliente := self.clientes.pop(0)):
-                        self.estado = EstadoDoServidor.Processando
-                    self.clientes.push(Cliente(chegada=self.poisson(self.lamda)))
-                    tempo += 
-                case EstadoDoServidor.Processando:
-                    tempo += self.exponencial()
-                    self.estado = EstadoDoServidor.Ocioso
+        tempo_atual = 0
+        ultima_chegada = 0
+        while tempo_atual < self.tempo_maximo:
+            while ultima_chegada <= tempo_atual:
+                self.fila_de_clientes.push(Cliente(chegada=ultima_chegada))
+                ultima_chegada += self.chegada_aleatoria()
+            while (cliente := self.fila_de_clientes.pop(0)):
+                tempo_atual += self.tempo_de_processamento()
+                cliente.saida = tempo_atual
+                self.clientes_processados.push(cliente)
+
                 
-    def poisson(self):
-        
-        pass
+    def chegada_aleatoria(self):
+        return 1.0 # TODO: this
+
+    def tempo_de_processamento(self):
+        return 1.0 # TODO: this
                     
-if __init__ == "__main__":
-    pass
+if __name__ == "__main__":
+    fila1 = Servidor(lamda=2, mu=4, tempo_maximo=10000)
+    fila2 = Servidor(lamda=2, mu=4, tempo_maximo=10000)
     
             
