@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Optional
 from enum import IntEnum, auto
+from numpy import random
 
 @dataclass
 class Cliente:
@@ -36,10 +37,12 @@ class Servidor:
                 self.processados.append(cliente)
 
     def chegada_aleatoria(self):
-        return 0.5 # TODO: this
+        chegada = random.exponential(self.lamda)
+        return chegada
 
     def tempo_de_processamento(self):
-        return 1.0 # TODO: this
+        saida = random.exponential(self.mu)
+        return saida 
     
     def show_log(self):
         class EventoTipo(IntEnum):
@@ -60,7 +63,7 @@ class Servidor:
                 na_fila += 1
             else:
                 na_fila -= 1
-            print(f"{'👨'* na_fila}")
+            print(f"{'👨'* na_fila} {evento.tempo}")
             
 if __name__ == "__main__":
     fila1 = Servidor(lamda=2, mu=4, tempo_maximo=10)
