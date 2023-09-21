@@ -6,6 +6,7 @@ from numpy import random
 @dataclass
 class Cliente:
     chegada: float
+    atendido: Optional[float] = None
     saida: Optional[float] = None
     
 @dataclass
@@ -31,6 +32,7 @@ class Servidor:
                 return False
             if cliente.chegada > tempo_atual:
                 return True
+            cliente.atendido = tempo_atual
             tempo_atual += self.tempo_de_processamento()
             cliente.saida = tempo_atual
             self.processados.append(cliente)
@@ -69,11 +71,18 @@ class Servidor:
             else:
                 na_fila -= 1
             print(f"{'👨'* na_fila} {evento.tempo:.2f}")
+        espera_media = sum(cliente.atendido - cliente.chegada for cliente in self.processados) / len(self.processados)
+        tempo_de_atendimento = sum(cliente.saida - cliente.atendido for cliente in self.processados) / len(self.processados)
+        print(f"Média de tempo de espera {espera_media:.2f}s")
+        print(f"Média de tempo de atendimento {tempo_de_atendimento:.2f}s")
+        
+        # print(f"Desvio"
+            
             
 if __name__ == "__main__":
     fila1 = Servidor(lamda=1, mu=2, tempo_maximo=10)
-    success = fila1.run()
+    fila1.run()
     fila1.show_log()
-    print('fila chegou a zero') if success else print('fila nunca acabou... :\'(')
+    
     
             
