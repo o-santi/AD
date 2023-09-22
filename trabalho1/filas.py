@@ -14,45 +14,39 @@ class Servidor:
     lamda: float
     mu: float
     tempo_maximo: float
-    
-    fila_de_clientes: list[Cliente] = field(default_factory=lambda: [Cliente(chegada=0)])
-    processados: list[Cliente] = field(default_factory=list)
 
-    def proximo_cliente(self):
-        try:
-            return self.fila_de_clientes.pop(0)
-        except IndexError:
-            return None
+    processados: list[Cliente] = field(default_factory=list)
     
+    def proximo_cliente(self, ultimo_cliente: Cliente) -> Cliente:
+        chegada = ultimo_cliente.chegada + self.chegada_aleatoria()
+        if chegada > ultimo_cliente.saida:
+            atendido = chegada
+            return Cliente(chegada=chegada, atendido=atendido,
+                           saida=atendido+self.tempo_de_processamento())
+        else:
+            atendido = ultimo_cliente.saida
+            return Cliente(chegada=chegada, atendido=ultimo_cliente.saida,
+                           saida=atendido+self.tempo_de_processamento())
+        
     def run(self):
-        tempo_atual = 0
-        ultima_chegada = 0
-        while (cliente := self.proximo_cliente()):
-            if tempo_atual > self.tempo_maximo:
-                return False
-            if cliente.chegada > tempo_atual:
-                return True
-            cliente.atendido = tempo_atual
-            tempo_atual += self.tempo_de_processamento()
-            cliente.saida = tempo_atual
-            self.processados.append(cliente)
-            while ultima_chegada <= tempo_atual:
-                ultima_chegada += self.chegada_aleatoria()
-                self.fila_de_clientes.append(Cliente(chegada=ultima_chegada))
-        return True
+        atual_cliente = Cliente(chegada=0, atendido=0,
+                                   saida=self.tempo_de_processamento())
+        while atual_cliente.saida < self.tempo_maximo:
+            self.processados.append(atual_cliente)
+            atual_cliente = self.proximo_cliente(atual_cliente)
     
     def chegada_aleatoria(self):
-        chegada = random.exponential(self.lamda)
-        return chegada
+        return random.exponential(1/self.lamda)
+         
 
     def tempo_de_processamento(self):
-        saida = random.exponential(self.mu)
-        return saida 
+        return random.exponential(1/self.mu)
     
     def show_log(self):
         class EventoTipo(IntEnum):
             Entrada = auto()
             Saida = auto()
+            Atendimento = auto()
 
         @dataclass
         class Evento:
@@ -60,27 +54,30 @@ class Servidor:
             tempo: float
             
         eventos: list[Evento] = []
-        na_fila = 0
-        for cliente in self.fila_de_clientes + self.processados:
+        for cliente in self.processados:
             eventos.append(Evento(EventoTipo.Entrada, cliente.chegada))
-            if cliente.saida:
-                eventos.append(Evento(EventoTipo.Saida, cliente.saida))
+            eventos.append(Evento(EventoTipo.Saida, cliente.saida))
+            eventos.append(Evento(EventoTipo.Atendimento, cliente.atendido))
+        na_fila = 0
+        max_na_fila = 0
         for evento in sorted(eventos, key=lambda evento: evento.tempo):
-            if evento.tipo == EventoTipo.Entrada:
-                na_fila += 1
-            else:
-                na_fila -= 1
-            print(f"{'👨'* na_fila} {evento.tempo:.2f}")
+            match evento.tipo:
+                case EventoTipo.Saida:
+                    na_fila -= 1
+                case EventoTipo.Entrada:
+                    na_fila += 1
+                    max_na_fila = max(max_na_fila, na_fila)
+        arrival_medio = sum(prox.chegada - c.chegada for (c, prox) in zip(self.processados[:-1], self.processados[1:])) / len(self.processados)
         espera_media = sum(cliente.atendido - cliente.chegada for cliente in self.processados) / len(self.processados)
         tempo_de_atendimento = sum(cliente.saida - cliente.atendido for cliente in self.processados) / len(self.processados)
+        print(f"Número de pessoas processadas {len(self.processados)}")
+        print(f"Máximo de pessoas na fila {max_na_fila}")
+        print(f"Média de tempo para chegada {arrival_medio}")
         print(f"Média de tempo de espera {espera_media:.2f}s")
         print(f"Média de tempo de atendimento {tempo_de_atendimento:.2f}s")
-        
-        # print(f"Desvio"
-            
             
 if __name__ == "__main__":
-    fila1 = Servidor(lamda=1, mu=2, tempo_maximo=10)
+    fila1 = Servidor(lamda=1, mu=2, tempo_maximo=10000)
     fila1.run()
     fila1.show_log()
     
