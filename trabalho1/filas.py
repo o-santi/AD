@@ -46,7 +46,7 @@ class Servidor:
         class EventoTipo(IntEnum):
             Entrada = auto()
             Saida = auto()
-            Atendimento = auto()
+            Atendido = auto()
 
         @dataclass
         class Evento:
@@ -57,7 +57,7 @@ class Servidor:
         for cliente in self.processados:
             eventos.append(Evento(EventoTipo.Entrada, cliente.chegada))
             eventos.append(Evento(EventoTipo.Saida, cliente.saida))
-            eventos.append(Evento(EventoTipo.Atendimento, cliente.atendido))
+            eventos.append(Evento(EventoTipo.Atendido, cliente.atendido))
         na_fila = 0
         max_na_fila = 0
         for evento in sorted(eventos, key=lambda evento: evento.tempo):
@@ -67,17 +67,22 @@ class Servidor:
                 case EventoTipo.Entrada:
                     na_fila += 1
                     max_na_fila = max(max_na_fila, na_fila)
+                    
         arrival_medio = sum(prox.chegada - c.chegada for (c, prox) in zip(self.processados[:-1], self.processados[1:])) / len(self.processados)
         espera_media = sum(cliente.atendido - cliente.chegada for cliente in self.processados) / len(self.processados)
         tempo_de_atendimento = sum(cliente.saida - cliente.atendido for cliente in self.processados) / len(self.processados)
+        tempo_ocioso = sum(prox.atendido - c.saida for (c, prox) in zip(self.processados[:-1], self.processados[1:]))
+                           
         print(f"Número de pessoas processadas {len(self.processados)}")
         print(f"Máximo de pessoas na fila {max_na_fila}")
-        print(f"Média de tempo para chegada {arrival_medio}")
+        print(f"Média de tempo para chegada {arrival_medio:.2f}s")
         print(f"Média de tempo de espera {espera_media:.2f}s")
         print(f"Média de tempo de atendimento {tempo_de_atendimento:.2f}s")
+        print(f"Tempo ocioso total {tempo_ocioso:.1f}s ({100 *tempo_ocioso/self.tempo_maximo:.2f}% do total)")
+
             
 if __name__ == "__main__":
-    fila1 = Servidor(lamda=1, mu=2, tempo_maximo=10000)
+    fila1 = Servidor(lamda=2, mu=2, tempo_maximo=100)
     fila1.run()
     fila1.show_log()
     
