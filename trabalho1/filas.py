@@ -5,17 +5,15 @@ from numpy import random, arange, exp, array
 import numpy as np
 from matplotlib import pyplot as plt
 
-def align_yaxis(ax1, ax2):
-    ax1_ylims = ax1.axes.get_ylim()           # Find y-axis limits set by the plotter
-    ax1_yratio = ax1_ylims[0] / ax1_ylims[1]  # Calculate ratio of lowest limit to highest limit
-
-    ax2_ylims = ax2.axes.get_ylim()           # Find y-axis limits set by the plotter
-    ax2_yratio = ax2_ylims[0] / ax2_ylims[1]  # Calculate ratio of lowest limit to highest limit
+class EventoTipo(IntEnum):
+    Entrada = auto()
+    Saida = auto()
+    Atendido = auto()
     
-    if ax1_yratio < ax2_yratio: 
-        ax2.set_ylim(bottom = ax2_ylims[1]*ax1_yratio)
-    else:
-        ax1.set_ylim(bottom = ax1_ylims[1]*ax2_yratio)
+@dataclass
+class Evento:
+    tipo : EventoTipo
+    tempo: float
         
 @dataclass
 class Cliente:
@@ -48,92 +46,130 @@ class Servidor:
         while atual_cliente.saida < self.tempo_maximo:
             self.processados.append(atual_cliente)
             atual_cliente = self.proximo_cliente(atual_cliente)
+
+    def run_until_empty(self):
+        atual_cliente = Cliente(chegada=0, atendido=0,
+                                   saida=self.tempo_de_processamento())
+        while atual_cliente.saida < self.tempo_maximo:
+            self.processados.append(atual_cliente)
+            if not (atual_cliente := self.proximo_cliente_ou_vazio(atual_cliente)):
+                return True
+        return False
+
+    def proximo_cliente_ou_vazio(self, ultimo_cliente):
+        chegada = ultimo_cliente.chegada + self.chegada_aleatoria()
+        if chegada < ultimo_cliente.saida:
+            atendido = ultimo_cliente.saida
+            return Cliente(chegada=chegada, atendido=ultimo_cliente.saida,
+                           saida=atendido+self.tempo_de_processamento())
     
     def chegada_aleatoria(self):
         return random.exponential(1/self.lamda)
-         
 
     def tempo_de_processamento(self):
         return random.exponential(1/self.mu)
-    
-    def info(self):
-        class EventoTipo(IntEnum):
-            Entrada = auto()
-            Saida = auto()
-            Atendido = auto()
 
-        @dataclass
-        class Evento:
-            tipo : EventoTipo
-            tempo: float
-            
-        eventos: list[Evento] = []
+    def eventos(self):            
+        eventos = []
+        
         for cliente in self.processados:
             eventos.append(Evento(EventoTipo.Entrada, cliente.chegada))
             eventos.append(Evento(EventoTipo.Saida, cliente.saida))
             eventos.append(Evento(EventoTipo.Atendido, cliente.atendido))
+        return sorted(eventos, key=lambda evento: evento.tempo)
+    
+    def info(self):
         na_fila = 0
-        max_na_fila = 0
-        points = [(0, 1)]
-        for evento in sorted(eventos, key=lambda evento: evento.tempo):
+        curr_time = 0
+        waiting_time = 0
+        pessoas_area = 0
+        cdf_pessoas = []
+        for evento in self.eventos():
+            pessoas_area += na_fila * (evento.tempo - curr_time)
+            cdf_pessoas.append((pessoas_area, evento.tempo))
+            curr_time = evento.tempo
             match evento.tipo:
                 case EventoTipo.Saida:
                     na_fila -= 1
-                    points.append((evento.tempo, na_fila))
                 case EventoTipo.Entrada:
                     na_fila += 1
-                    points.append((evento.tempo, na_fila))
-                    max_na_fila = max(max_na_fila, na_fila)
-       
-        [x, y] = list(zip(*points))
-        fig = plt.figure(figsize=(10, 5))
-        (fila, histograma) = fig.subplots(2, 2, width_ratios=[2, 1, 1, 1])
-        fig.suptitle(f'Fila M/M/1 ($\lambda$={self.lamda}, $\mu$={self.mu}) ($T_{{max}}={self.tempo_maximo}s)$', fontsize=15)
-        fila.set_xlabel('Tempo (s)')
-        fila.set_ylabel('Número de clientes')
-        fila.bar(x, y, align='edge')
-        fila.grid(True, axis='y', linestyle='dashed')
-
-        rho = self.lamda / self.mu
-        cdf_x = arange(0, self.tempo_maximo, 0.1)
-        cdf_y = []
-        xs = (p for p in points)
-        proximo_y = 1
-        atual_x, atual_y = (0, 1)
-        for x in cdf_x:
-            while atual_x < x:
-                try:
-                    atual_y = proximo_y
-                    atual_x, proximo_y = next(xs) 
-                except:
-                    break
-            cdf_y.append(atual_y)
-
-        histograma.set_title(f'CDF (media={np.sum(cdf_y) / len(cdf_y):.2f}, teorico={rho / (1 - rho):.2f})')
-        histograma.hist(cdf_y, bins=max_na_fila, histtype='step', align='mid', color='blue')
-        histograma.tick_params(axis='y', colors='blue')
-        poisson = histograma.twinx()
-        poisson_x = arange(0, max_na_fila, 0.01)
-        poisson.plot(poisson_x, list(map(lambda k: exp(-rho * k) * rho, poisson_x)),
-                     label=f'Teorico = Exp($\\lambda$=$\\rho$={rho:.2f})',
-                     color='red', alpha=0.8, linestyle='dashed')
-        poisson.tick_params(axis='y', colors='red')
-        poisson.legend()
+        waiting_time = sum(cliente.atendido - cliente.chegada for cliente in self.processados)
+        mean_waiting_time = waiting_time / len(self.processados)
+        mean_pessoas_area = pessoas_area / self.tempo_maximo
+        return mean_pessoas_area, mean_waiting_time, cdf_pessoas
         
-        # align_yaxis(histograma, poisson) 
+    # def plot(self):
+    #     [x, y] = list(zip(*points))
+    #     fig = plt.figure(figsize=(10, 5))
+    #     fila = fig.subplots(1, 1)
+    #     fig.suptitle(f'''Fila M/M/1 ($\lambda$={self.lamda}, $\mu$={self.mu})  ($T_{{max}}={self.tempo_maximo}s) (Mean = {mean_persons/self.tempo_maximo:.2f}$)''', fontsize=15)
 
-        plt.show()
+    #     fila.set_xlabel('Tempo (s)')
+    #     fila.set_ylabel('Número de clientes')
+    #     fila.bar(x, y, align='edge')
+    #     fila.grid(True, axis='y', linestyle='dashed')
 
-        # print(f"Número de pessoas processadas {len(self.processados)}")
-        # print(f"Máximo de pessoas na fila {max_na_fila}")
-        # print(f"Média de tempo para chegada {arrival_medio:.2f}s")
-        # print(f"Média de tempo de espera {espera_media:.2f}s")
-        # print(f"Média de tempo de atendimento {tempo_de_atendimento:.2f}s")
-        # print(f"Tempo ocioso total {tempo_ocioso:.1f}s ({100 *tempo_ocioso/self.tempo_maximo:.2f}% do total)")
+    #     plt.show()
 
+def gera_cdfs(lamda, mu, tempo_maximo=100):
+    serv = Servidor(lamda=lamda, mu=mu, tempo_maximo=tempo_maximo)
+    serv.run()
+    _, _, cdf = serv.info()
+    [tempo, pessoas] = list(zip(*cdf))
+    fig = plt.figure(figsize=(10, 5))
+    
+    fig.suptitle(f"M/M/1 ($\\lambda$ = {lamda}, $\\mu$ = {mu})")
+    [clientes, espera] = fig.subplots(2, 1)
+    clientes.set_title("Cdf do número de clientes")
+    clientes.plot(tempo, pessoas)
+
+    x = range(len(serv.processados))
+    y = []
+    soma = 0
+    for cliente in serv.processados:
+        soma += cliente.saida - cliente.chegada
+        y.append(soma)
+    espera.set_title("Cdf do tempo de espera")
+    espera.plot(x, y)
+
+    fig.tight_layout()
+    plt.savefig(f"m_m_1_queue_lambda_{lamda}_mu_{mu}.png")
+    
+    
+def simula_servidores(lamda, mu, tempo_maximo=100):
+    medias = []
+    rho = lamda/mu
+    for n in range(100):
+        serv = Servidor(lamda=lamda, mu=mu, tempo_maximo=tempo_maximo)
+        serv.run()
+        numero_medio_clientes, tempo_medio_espera, _ = serv.info()
+        medias.append((numero_medio_clientes, tempo_medio_espera))
+    def media_desvio_padrao(l):
+        media = np.mean(l)
+        desvio = np.std(l)
+        confianca = 1.984 * (desvio / np.sqrt(len(l)))
+        return media, desvio, confianca 
+    [[c_media, c_desvio_padrao, c_confianca], [e_media, e_desvio_padrao, e_confianca]] = list(map(media_desvio_padrao, zip(*medias)))
+    
+    print(f"Média de clientes {c_media:.2f} (±{c_confianca:.2f} @ 95%) (teorico: {rho/(1-rho):.2f}), desvio padrão {c_desvio_padrao:.2f}")
+    print(f"Tempo médio de espera: {e_media:.2f} (±{e_confianca:.2f} @ 95%) (teorico: {rho / (mu - lamda):.2f}) desvio padrão {e_desvio_padrao:.2f}")
+
+def estima_terminacoes(lamda, mu, tempo_maximo=100):
+    terminations = 0
+    tries = 10000
+    for n in range(tries):
+        serv = Servidor(lamda=lamda, mu=mu, tempo_maximo=tempo_maximo)
+        terminated = serv.run_until_empty()
+        if terminated:
+            terminations += 1
+    print(f"O sistema (lambda={lamda}, mu={mu}) termina {100 * terminations / tries}% das vezes")
             
 if __name__ == "__main__":
-
-    fila = Servidor(lamda=1, mu=4.1, tempo_maximo=10000)
-    fila.run()
-    fila.info()
+    simula_servidores(lamda=1, mu=2, tempo_maximo=1000)
+    simula_servidores(lamda=2, mu=4, tempo_maximo=1000)
+    gera_cdfs(lamda=1, mu=2)
+    gera_cdfs(lamda=2, mu=4)
+    estima_terminacoes(lamda=2,    mu=4)
+    estima_terminacoes(lamda=1,    mu=2)
+    estima_terminacoes(lamda=1.05, mu=1)
+    estima_terminacoes(lamda=1.10, mu=1)
