@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Optional
 from enum import IntEnum, auto
-from numpy import random, arange, exp
-from math import gamma
+from numpy import random, arange, exp, array
+import numpy as np
 from matplotlib import pyplot as plt
 
 def align_yaxis(ax1, ax2):
@@ -74,7 +74,7 @@ class Servidor:
             eventos.append(Evento(EventoTipo.Atendido, cliente.atendido))
         na_fila = 0
         max_na_fila = 0
-        points = []
+        points = [(0, 1)]
         for evento in sorted(eventos, key=lambda evento: evento.tempo):
             match evento.tipo:
                 case EventoTipo.Saida:
@@ -84,31 +84,43 @@ class Servidor:
                     na_fila += 1
                     points.append((evento.tempo, na_fila))
                     max_na_fila = max(max_na_fila, na_fila)
-       # arrival_medio = sum(prox.chegada - c.chegada for (c, prox) in zip(self.processados[:-1], self.processados[1:])) / len(self.processados)
-       # espera_media = sum(cliente.atendido - cliente.chegada for cliente in self.processados) / len(self.processados)
-       # tempo_de_atendimento = sum(cliente.saida - cliente.atendido for cliente in self.processados) / len(self.processados)
-       # tempo_ocioso = sum(prox.atendido - c.saida for (c, prox) in zip(self.processados[:-1], self.processados[1:]))
-
+       
         [x, y] = list(zip(*points))
         fig = plt.figure(figsize=(10, 5))
-        (fila, histograma) = fig.subplots(1, 2, width_ratios=[3, 2])
+        (fila, histograma) = fig.subplots(2, 2, width_ratios=[2, 1, 1, 1])
         fig.suptitle(f'Fila M/M/1 ($\lambda$={self.lamda}, $\mu$={self.mu}) ($T_{{max}}={self.tempo_maximo}s)$', fontsize=15)
         fila.set_xlabel('Tempo (s)')
         fila.set_ylabel('Número de clientes')
-        fila.plot(x, y)
-        fila.axhline(y=0, color='r', linestyle='-', alpha=0.55)
+        fila.bar(x, y, align='edge')
+        fila.grid(True, axis='y', linestyle='dashed')
 
-        histograma.set_title('Histograma')
-        histograma.hist(y, bins=max_na_fila, histtype='stepfilled', align='mid', color='blue')
+        rho = self.lamda / self.mu
+        cdf_x = arange(0, self.tempo_maximo, 0.1)
+        cdf_y = []
+        xs = (p for p in points)
+        proximo_y = 1
+        atual_x, atual_y = (0, 1)
+        for x in cdf_x:
+            while atual_x < x:
+                try:
+                    atual_y = proximo_y
+                    atual_x, proximo_y = next(xs) 
+                except:
+                    break
+            cdf_y.append(atual_y)
+
+        histograma.set_title(f'CDF (media={np.sum(cdf_y) / len(cdf_y):.2f}, teorico={rho / (1 - rho):.2f})')
+        histograma.hist(cdf_y, bins=max_na_fila, histtype='step', align='mid', color='blue')
         histograma.tick_params(axis='y', colors='blue')
         poisson = histograma.twinx()
-        poisson.plot((x := arange(0, max_na_fila, 0.01)),
-                        list(map(lambda k: exp(-self.lamda) * (self.lamda**k)/gamma(k +1), x)),
-                        label=f'Poisson($\lambda$={self.lamda})',
-                        color='red', alpha=0.8)
+        poisson_x = arange(0, max_na_fila, 0.01)
+        poisson.plot(poisson_x, list(map(lambda k: exp(-rho * k) * rho, poisson_x)),
+                     label=f'Teorico = Exp($\\lambda$=$\\rho$={rho:.2f})',
+                     color='red', alpha=0.8, linestyle='dashed')
         poisson.tick_params(axis='y', colors='red')
         poisson.legend()
-        align_yaxis(histograma, poisson)
+        
+        # align_yaxis(histograma, poisson) 
 
         plt.show()
 
@@ -121,12 +133,7 @@ class Servidor:
 
             
 if __name__ == "__main__":
-    fila1 = Servidor(lamda=2, mu=4, tempo_maximo=1000)
-    fila1.run()
-    fila1.info()
-    
-    
-            
-            
-            
-            
+
+    fila = Servidor(lamda=1, mu=4.1, tempo_maximo=10000)
+    fila.run()
+    fila.info()
