@@ -31,14 +31,9 @@ class Servidor:
     
     def proximo_cliente(self, ultimo_cliente: Cliente) -> Cliente:
         chegada = ultimo_cliente.chegada + self.chegada_aleatoria()
-        if chegada > ultimo_cliente.saida:
-            atendido = chegada
-            return Cliente(chegada=chegada, atendido=atendido,
-                           saida=atendido+self.tempo_de_processamento())
-        else:
-            atendido = ultimo_cliente.saida
-            return Cliente(chegada=chegada, atendido=ultimo_cliente.saida,
-                           saida=atendido+self.tempo_de_processamento())
+        atendido = max(chegada, ultimo_cliente.saida)
+        return Cliente(chegada=chegada, atendido=atendido,
+                       saida=atendido+self.tempo_de_processamento())
         
     def run(self):
         atual_cliente = Cliente(chegada=0, atendido=0,
