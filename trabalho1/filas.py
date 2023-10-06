@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Optional
 from enum import IntEnum, auto
-from numpy import random, arange, exp, array
+from numpy import random
 import numpy as np
 from matplotlib import pyplot as plt
 
@@ -9,7 +9,7 @@ class EventoTipo(IntEnum):
     Entrada = auto()
     Saida = auto()
     Atendido = auto()
-    
+
 @dataclass
 class Evento:
     tipo : EventoTipo
@@ -20,6 +20,12 @@ class Cliente:
     chegada: float
     atendido: Optional[float] = None
     saida: Optional[float] = None
+
+# @dataclass
+# class Estatisticas:
+    
+
+    
     
 @dataclass
 class Servidor:
@@ -44,12 +50,29 @@ class Servidor:
 
     def run_until_empty(self):
         atual_cliente = Cliente(chegada=0, atendido=0,
-                                   saida=self.tempo_de_processamento())
+                                saida=self.tempo_de_processamento())
         while atual_cliente.saida < self.tempo_maximo:
             self.processados.append(atual_cliente)
             if not (atual_cliente := self.proximo_cliente_ou_vazio(atual_cliente)):
                 return True
         return False
+
+    def run_with_max_clientes_until_empty(self, max_clientes):
+        atual_cliente = Cliente(chegada=0, atendido=0,
+                                saida=self.tempo_de_processamento())
+        clientes_na_fila = 0
+        while atual_cliente.saida < self.tempo_maximo:
+            self.processados.append(atual_cliente)
+            if not (atual_cliente := self.proximo_cliente_ou_vazio(atual_cliente)):
+                return True
+            if atual_cliente.atendido > atual_cliente.chegada:
+                clientes_na_fila += 1
+            else:
+                clientes_na_fila -= 1
+            if clientes_na_fila > max_clientes:
+                return False
+            prox_cliente = atual_cliente
+        
 
     def proximo_cliente_ou_vazio(self, ultimo_cliente):
         chegada = ultimo_cliente.chegada + self.chegada_aleatoria()
@@ -158,7 +181,17 @@ def estima_terminacoes(lamda, mu, tempo_maximo=100):
         if terminated:
             terminations += 1
     print(f"O sistema (lambda={lamda}, mu={mu}) termina {100 * terminations / tries}% das vezes")
-            
+
+def estima_terminacoes_com_max_clientes(lamda, mu, max_clientes, tempo_maximo=100):
+    terminations = 0
+    tries = 10000
+    for n in range(tries):
+        serv = Servidor(lamda=lamda, mu=mu, tempo_maximo=tempo_maximo)
+        terminated = serv.run_with_max_clientes_until_empty(max_clientes)
+        if terminated:
+            terminations += 1
+    print(f"O sistema (lambda={lamda}, mu={mu}, fila_max={max_clientes}) termina {100 * terminations / tries}% das vezes")
+    
 if __name__ == "__main__":
     simula_servidores(lamda=1, mu=2, tempo_maximo=1000)
     simula_servidores(lamda=2, mu=4, tempo_maximo=1000)
@@ -168,3 +201,5 @@ if __name__ == "__main__":
     estima_terminacoes(lamda=1,    mu=2)
     estima_terminacoes(lamda=1.05, mu=1)
     estima_terminacoes(lamda=1.10, mu=1)
+    estima_terminacoes_com_max_clientes(lamda=1.05, mu=1, max_clientes=5)
+    estima_terminacoes_com_max_clientes(lamda=0.5, mu=1, max_clientes=5)
