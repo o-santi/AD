@@ -61,7 +61,7 @@ class Servidor:
         atual_cliente = Cliente(chegada=0, atendido=0,
                                 saida=self.tempo_de_processamento())
         clientes_na_fila = 0
-        while atual_cliente.saida < self.tempo_maximo:
+        while True:
             self.processados.append(atual_cliente)
             if not (atual_cliente := self.proximo_cliente_ou_vazio(atual_cliente)):
                 return True
@@ -199,7 +199,9 @@ if __name__ == "__main__":
     gera_cdfs(lamda=2, mu=4)
     estima_terminacoes(lamda=2,    mu=4)
     estima_terminacoes(lamda=1,    mu=2)
-    estima_terminacoes(lamda=1.05, mu=1)
-    estima_terminacoes(lamda=1.10, mu=1)
-    estima_terminacoes_com_max_clientes(lamda=1.05, mu=1, max_clientes=5)
-    estima_terminacoes_com_max_clientes(lamda=0.5, mu=1, max_clientes=5)
+    estima_terminacoes(lamda=1.05, mu=1, tempo_maximo=10000)
+    estima_terminacoes(lamda=1.10, mu=1, tempo_maximo=10000)
+    estima_terminacoes_com_max_clientes(lamda=1.05, mu=1, max_clientes=1000)
+    estima_terminacoes_com_max_clientes(lamda=1.1, mu=1, max_clientes=1000)
+    estima_terminacoes_com_max_clientes(lamda=1, mu=2, max_clientes=1000)
+    estima_terminacoes_com_max_clientes(lamda=2, mu=4, max_clientes=1000)
